@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30413.136
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpNamedPipePTH", "SharpNamedPipePTH\SharpNamedPipePTH.csproj", "{344EE55A-4E32-46F2-A003-69AD52B55945}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{344EE55A-4E32-46F2-A003-69AD52B55945}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{344EE55A-4E32-46F2-A003-69AD52B55945}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{344EE55A-4E32-46F2-A003-69AD52B55945}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{344EE55A-4E32-46F2-A003-69AD52B55945}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {304B6A98-ECAE-497C-9C84-8CBB6E962F96}
+	EndGlobalSection
+EndGlobal
