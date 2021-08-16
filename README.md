@@ -1,6 +1,6 @@
 # SharpNamedPipePTH
 
-This project is a C# tool to use Pass-the-Hash for authentication on a local Named Pipe  for user Impersonation. There is a blog post for explanation:
+This project is a C# tool to use Pass-the-Hash for authentication on a local Named Pipe  for user Impersonation. You need a local administrator or SEImpersonate rights to use this. There is a blog post for explanation:
 
 [https://s3cur3th1ssh1t.github.io/Named-Pipe-PTH/](https://s3cur3th1ssh1t.github.io/Named-Pipe-PTH/)
 
