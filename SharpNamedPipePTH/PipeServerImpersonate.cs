@@ -93,9 +93,6 @@ namespace SharpNamedPipePTH
 
         // Imports, feel free porting them to D/Invoke or Syscalls :P
 
-        [DllImport("userenv.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        static extern bool LoadUserProfile(IntPtr hToken, ref PROFILEINFO lpProfileInfo);
-
         [DllImport("kernel32.dll", BestFitMapping = false, CharSet = CharSet.Auto, SetLastError = true)]
         public static extern IntPtr CreateNamedPipeW(string pipeName, int openMode, int pipeMode, int maxInstances, int outBufferSize, int inBufferSize, int defaultTimeout, ref SECURITY_ATTRIBUTES securityAttributes);
 
@@ -392,18 +389,7 @@ namespace SharpNamedPipePTH
                 else
                 {
                     
-                    // Only testing purpose to fake an interactive logon somehow
-                    PROFILEINFO profInfo = new PROFILEINFO();
-                    bool loadProfileSuccess = LoadUserProfile(sysToken, ref profInfo);
-                    if (loadProfileSuccess)
-                    {
-                        Console.WriteLine("LoadUserProfile success!");
-                    }
-                    else
-                    {
-                        Console.WriteLine("LoadUserProfile failed!");
-                    }
-                    
+                                        
                     RevertToSelf();
 
                     // Spawn a new process with the duplicated token, a desktop session, and the created profile
