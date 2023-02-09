@@ -48,17 +48,41 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ArgParse.cs" />
+    <Compile Include="Keys.cs" />
+    <Compile Include="Tpkg.cs" />
+    <Compile Include="OSVersionHelper.cs" />
+    <Compile Include="Credential.cs" />
+    <Compile Include="Crypto\BCrypt.cs" />
+    <Compile Include="Crypto\GenericAes128.cs" />
+    <Compile Include="LogonSessions.cs" />
+    <Compile Include="Msv1.cs" />
+    <Compile Include="Kerberos.cs" />
     <Compile Include="PipeServerImpersonate.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="NamedPipePTH.cs" />
+    <Compile Include="PTH.cs" />
     <Compile Include="SMBConnect.cs" />
     <Compile Include="DInvoke.cs" />
+    <Compile Include="Utility.cs" />
     <Compile Include="Utilities.cs" />
+    <Compile Include="Win32\CustomLoadLibrary.cs" />
+    <Compile Include="Win32\Natives.cs" />
+    <Compile Include="Win32\Syscall.cs" />
+    <Compile Include="WinBuild\IWinBuild.cs" />
+    <Compile Include="WinBuild\WinBuild1507.cs" />
+    <Compile Include="WinBuild\WinBuild1511.cs" />
+    <Compile Include="WinBuild\WinBuild1607.cs" />
+    <Compile Include="WinBuild\WinBuild1703.cs" />
+    <Compile Include="WinBuild\WinBuild1803.cs" />
+    <Compile Include="WinBuild\WinBuild1809.cs" />
+    <Compile Include="WinBuild\WinBuild1903.cs" />
+    <Compile Include="WinBuild\WinBuild2004.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

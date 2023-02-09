@@ -41,5 +41,8 @@ namespace SharpNamedPipePTH
 
             return byte_Array;
         }
+
+ 
+        
     }
 }

