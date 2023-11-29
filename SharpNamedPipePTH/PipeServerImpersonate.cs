@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Diagnostics;
@@ -462,8 +462,8 @@ namespace SharpNamedPipePTH
                     }
                     */
                     
-                    //if (/*SharpNamedPipePTH.Win32.Natives.CreateProcessWithLogonW(username, "", domain, logonFlags,  binary, args, SharpNamedPipePTH.Win32.Natives.CreationFlags.CREATE_SUSPENDED, 0, null, ref sInfo, out pInfo))*/CreateProcessWithTokenW(sysToken, LogonFlags.NetCredentialsOnly, binary, args, CreationFlags.NewConsole | CreationFlags.Suspended , IntPtr.Zero, null, ref sInfo, out pInfo))
-                    /*{ 
+                    if (CreateProcessWithTokenW(sysToken, LogonFlags.NetCredentialsOnly, binary, args, CreationFlags.NewConsole | CreationFlags.Suspended , IntPtr.Zero, null, ref sInfo, out pInfo))
+                    { 
                         Console.WriteLine($"Executed '{binary}' in Process-ID '{pInfo.dwProcessId}'with impersonated token!");
                         Console.WriteLine($"Process Handle: '{pInfo.hProcess}'");
                     }
@@ -475,7 +475,7 @@ namespace SharpNamedPipePTH
                     Globals.UpdateIntPtr(pInfo.hProcess);
                     Console.WriteLine($"Process Handle: '{Globals.suspendedProcessHandle}'");
                     Globals.suspendedProcessId = pInfo.dwProcessId;
-                    */
+                    
                     Globals.UpdateIntPtrToken(sysToken);
                     
                     return sysToken;
